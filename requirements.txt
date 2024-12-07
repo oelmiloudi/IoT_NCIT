@@ -1,0 +1,8 @@
+Flask
+requests
+pymysql
+SQLAlchemy
+pandas
+apscheduler
+pytz
+gunicorn
