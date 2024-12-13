@@ -6,8 +6,7 @@ from sqlalchemy import create_engine, text
 from io import StringIO
 import os
 
-
-# Your constants
+# constants
 ZENTRA_API_URL = "https://zentracloud.com/api/v4/get_readings/"
 ZENTRA_API_KEY = "4447a79ff801823b5ba3dd151af75755668ce615"
 ZENTRA_DEVICE_SN = "z6-26142"
@@ -16,7 +15,7 @@ THINGSPEAK_CHANNEL_ID = '2489769'
 THINGSPEAK_API_KEY = '37J7D7JP4SXSU6X2'
 THINGSPEAK_API_URL = f'https://api.thingspeak.com/channels/{THINGSPEAK_CHANNEL_ID}/feeds.json'
 
-DB_URL = os.environ.get("DB_URL")
+DB_URL = "mysql+pymysql://root:@localhost:3307/IoT_NCIT"
 engine = create_engine(DB_URL)
 
 
