@@ -15,20 +15,25 @@ def index():
 
 @app.route('/get_zentracloud_data')
 def get_zentracloud_data():
-    start = request.args.get('start', '')
-    end = request.args.get('end', '')
+    start = request.args.get('start', '')  # e.g. '2024-12-12 13:00'
+    end = request.args.get('end', '')      # e.g. '2024-12-25 00:00'
+    
+    # Call the function from data_retrieval.py
     df = get_zentracloud_data_from_db(start, end)
     
-    # Convert the entire DataFrame to a dictionary of lists
-    # Keys are column names (as in the database), values are lists of values
+    # Convert the DataFrame to a dictionary of lists
     data = df.to_dict(orient='list')
     return jsonify(data)
 
 @app.route('/get_thingspeak_data')
 def get_thingspeak_data():
-    start = request.args.get('start', '')
-    end = request.args.get('end', '')
+    start = request.args.get('start', '')  # e.g. '2024-12-12 00:13:00-06:00'
+    end = request.args.get('end', '')      # e.g. '2024-12-25 00:00:00-06:00'
+    
+    # Call the function from data_retrieval.py
     df = get_thingspeak_data_from_db(start, end)
+    
+    # Convert the DataFrame to a dictionary of lists
     data = df.to_dict(orient='list')
     return jsonify(data)
 
