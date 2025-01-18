@@ -21,32 +21,36 @@ def index():
 
 @app.route('/get_zentracloud_data')
 def get_zentracloud_data():
-    start = request.args.get('start', '') 
-    end = request.args.get('end', '')      
-    
-    # call the function from data_retrieval.py
-    df = get_zentracloud_data_from_db(start, end)
-    
-    # convert the DataFrame to a dictionary of lists
-    data = df.to_dict(orient='list')
-    return jsonify(data)
+    try:
+        start = request.args.get('start', '') 
+        end = request.args.get('end', '')      
+
+        df = get_zentracloud_data_from_db(start, end)
+        if df.empty:
+            return jsonify({'error': 'No data found for the specified range'}), 404
+
+        data = df.to_dict(orient='list')
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/get_thingspeak_data')
 def get_thingspeak_data():
-    start = request.args.get('start', '') 
-    end = request.args.get('end', '')     
-    
-    # call the function from data_retrieval.py
-    df = get_thingspeak_data_from_db(start, end)
-    
-    # dropping 'id' column
-    if 'id' in df.columns:
-        df = df.drop(['id'], axis=1)
-    
-    # convert the DataFrame to a dictionary of lists
-    data = df.to_dict(orient='list')
-    return jsonify(data)
+    try:
+        start = request.args.get('start', '') 
+        end = request.args.get('end', '')     
 
+        df = get_thingspeak_data_from_db(start, end)
+        if df.empty:
+            return jsonify({'error': 'No data found for the specified range'}), 404
+
+        if 'id' in df.columns:
+            df = df.drop(['id'], axis=1)
+
+        data = df.to_dict(orient='list')
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
