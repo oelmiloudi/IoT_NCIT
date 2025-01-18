@@ -19,6 +19,14 @@ THINGSPEAK_API_URL = f'https://api.thingspeak.com/channels/{THINGSPEAK_CHANNEL_I
 THINGSPEAK_START_DATE = "2024-09-13 00:00:00-06:00"
 THINGSPEAK_END_DATE = "2025-01-16 00:00:00-06:00"
 
+DATABASE_CONFIG = {
+    'user': 'iot-project-db',  # Cloud SQL username
+    'password': 'IoTNCIT2024',  # Cloud SQL password
+    'host': '34.174.9.65', # Cloud Public IP
+    'port': 3306,  
+    'database': 'IoT_NCIT',  # DB
+}
+
 def zentra_retrieve_data_for_period(device_sn, period_start, period_end):
     headers = {
         "Authorization": f"Token {ZENTRA_API_KEY}",
@@ -106,8 +114,11 @@ def zentra_pivot_and_insert_readings(df):
     # rename columns to remove spaces and make them SQL-friendly
     df_pivot.columns = [col.replace(" ", "_") for col in df_pivot.columns]
 
-    # connect to the MySQL database
-    engine = create_engine("mysql+pymysql://root:@localhost:3307/IoT_NCIT")
+    # connect to the Google CloudSQL database
+    engine = create_engine(
+    f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@"
+    f"{DATABASE_CONFIG['host']}:{DATABASE_CONFIG['port']}/{DATABASE_CONFIG['database']}"
+)
 
     try:
         df_pivot.to_sql("SensorReadings", con=engine, if_exists="append", index=False)
@@ -226,8 +237,11 @@ def thingspeak_retrieve_data_for_period(start_date, end_date):
 
 def thingspeak_create_database_and_table():
     try:
-        # create engine with database specified
-        engine = create_engine("mysql+pymysql://root:@localhost:3307/IoT_NCIT")
+        # Google CloudSQL engine
+        engine = create_engine(
+    f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@"
+    f"{DATABASE_CONFIG['host']}:{DATABASE_CONFIG['port']}/{DATABASE_CONFIG['database']}"
+)
         
         # create table if it doesn't exist
         create_table_query = """
@@ -295,7 +309,10 @@ def get_zentracloud_data_from_db(start_date, end_date):
     Retrieve data from the 'readings' table (ZENTRA data) within a given date range.
     If start_date or end_date is empty, retrieve all rows.
     """
-    engine = create_engine("mysql+pymysql://root:@localhost:3307/IoT_NCIT")
+    engine = create_engine(
+    f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@"
+    f"{DATABASE_CONFIG['host']}:{DATABASE_CONFIG['port']}/{DATABASE_CONFIG['database']}"
+)
 
     with engine.connect() as conn:
         if start_date and end_date:
@@ -319,7 +336,10 @@ def get_thingspeak_data_from_db(start_date, end_date):
     Retrieve data from the 'thingspeak_data' table within a given date range.
     If start_date or end_date is empty, retrieve all rows.
     """
-    engine = create_engine("mysql+pymysql://root:@localhost:3307/IoT_NCIT")
+    engine = create_engine(
+    f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@"
+    f"{DATABASE_CONFIG['host']}:{DATABASE_CONFIG['port']}/{DATABASE_CONFIG['database']}"
+)
 
     with engine.connect() as conn:
         if start_date and end_date:
