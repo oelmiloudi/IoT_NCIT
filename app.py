@@ -18,10 +18,10 @@ def get_zentracloud_data():
     start = request.args.get('start', '') 
     end = request.args.get('end', '')      
     
-    # Call the function from data_retrieval.py
+    # call the function from data_retrieval.py
     df = get_zentracloud_data_from_db(start, end)
     
-    # Convert the DataFrame to a dictionary of lists
+    # convert the DataFrame to a dictionary of lists
     data = df.to_dict(orient='list')
     return jsonify(data)
 
@@ -30,12 +30,17 @@ def get_thingspeak_data():
     start = request.args.get('start', '') 
     end = request.args.get('end', '')     
     
-    # Call the function from data_retrieval.py
+    # call the function from data_retrieval.py
     df = get_thingspeak_data_from_db(start, end)
     
-    # Convert the DataFrame to a dictionary of lists
+    # dropping 'id' column
+    if 'id' in df.columns:
+        df = df.drop(['id'], axis=1)
+    
+    # convert the DataFrame to a dictionary of lists
     data = df.to_dict(orient='list')
     return jsonify(data)
+
 
 if __name__ == '__main__':
     app.run(debug=True)

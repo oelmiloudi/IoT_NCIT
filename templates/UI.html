@@ -57,28 +57,25 @@
 
         <ul class="nav nav-tabs" id="dataTabs" role="tablist">
           <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="zentra-tab" data-bs-toggle="tab" data-bs-target="#zentra" type="button" role="tab" aria-controls="zentra" aria-selected="true">Zentracloud Data</button>
+            <button class="nav-link active" id="iot-tab" data-bs-toggle="tab" data-bs-target="#iot" type="button" role="tab" aria-controls="iot" aria-selected="true">On-Site Readings</button>
           </li>
           <li class="nav-item" role="presentation">
-            <button class="nav-link" id="thingspeak-tab" data-bs-toggle="tab" data-bs-target="#thingspeak" type="button" role="tab" aria-controls="thingspeak" aria-selected="false">ThingSpeak Data</button>
+            <button class="nav-link" id="slope-tab" data-bs-toggle="tab" data-bs-target="#slope" type="button" role="tab" aria-controls="slope" aria-selected="false">Slope Failure Detection</button>
           </li>
         </ul>
 
         <div class="tab-content" id="dataTabsContent">
-          <!-- Zentracloud Data Tab -->
-          <div class="tab-pane fade show active" id="zentra" role="tabpanel" aria-labelledby="zentra-tab">
-            <div class="row mt-4" id="zentraChartsContainer">
-              <!-- Charts will be injected here dynamically -->
+          <!-- On-Site IoT Readings Tab -->
+          <div class="tab-pane fade show active" id="iot" role="tabpanel" aria-labelledby="iot-tab">
+            <div class="row mt-4" id="iotChartsContainer">
+              <!-- Charts for both Zentra and ThingSpeak will be injected here dynamically -->
             </div>
-            <div class="no-data" id="zentraNoData" style="display:none;">No Data Available</div>
+            <div class="no-data" id="iotNoData" style="display:none;">No Data Available</div>
           </div>
 
-          <!-- ThingSpeak Data Tab -->
-          <div class="tab-pane fade" id="thingspeak" role="tabpanel" aria-labelledby="thingspeak-tab">
-            <div class="row mt-4" id="thingspeakChartsContainer">
-              <!-- Charts will be injected here dynamically -->
-            </div>
-            <div class="no-data" id="thingspeakNoData" style="display:none;">No Data Available</div>
+          <!-- Slope Failure Detection Tab -->
+          <div class="tab-pane fade" id="slope" role="tabpanel" aria-labelledby="slope-tab">
+            <!-- Content for Slope Failure Detection will be added here in the future -->
           </div>
         </div>
     </div>
@@ -87,8 +84,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let isLiveMode = true;
-        const zentraCharts = [];
-        const thingspeakCharts = [];
+        const iotCharts = [];
 
         async function fetchData(source, start, end) {
             const params = new URLSearchParams();
@@ -158,29 +154,20 @@
         }
 
         function clearExistingCharts(chartsArray, containerId, noDataId) {
-            // Destroy old charts
             chartsArray.forEach(ch => ch.destroy());
             chartsArray.length = 0;
 
-            // Clear container
             const container = document.getElementById(containerId);
             container.innerHTML = '';
 
-            // Hide no data message
             document.getElementById(noDataId).style.display = 'none';
         }
 
-        function displayData(source, data) {
-            const isZentra = (source === 'zentra');
-            const containerId = isZentra ? 'zentraChartsContainer' : 'thingspeakChartsContainer';
-            const noDataId = isZentra ? 'zentraNoData' : 'thingspeakNoData';
-            const chartsArray = isZentra ? zentraCharts : thingspeakCharts;
-
-            clearExistingCharts(chartsArray, containerId, noDataId);
+        function displayData(data) {
+            clearExistingCharts(iotCharts, 'iotChartsContainer', 'iotNoData');
 
             if (!data || !data.timestamp || data.timestamp.length === 0) {
-                // No data scenario
-                document.getElementById(noDataId).style.display = 'block';
+                document.getElementById('iotNoData').style.display = 'block';
                 return;
             }
 
@@ -188,32 +175,27 @@
             const keys = Object.keys(data).filter(k => k !== 'timestamp');
 
             if (keys.length === 0) {
-                // If there are no other columns besides timestamp
-                document.getElementById(noDataId).style.display = 'block';
+                document.getElementById('iotNoData').style.display = 'block';
                 return;
             }
 
-            const container = document.getElementById(containerId);
+            const container = document.getElementById('iotChartsContainer');
 
             keys.forEach((key, idx) => {
-                // Create card and canvas for this measurement
                 const colDiv = document.createElement('div');
                 colDiv.className = 'col-md-6';
                 colDiv.innerHTML = `
                     <div class="card p-3">
                         <h5 class="card-title text-center">${key}</h5>
-                        <canvas id="${source}_${key}_chart"></canvas>
+                        <canvas id="iot_${key}_chart"></canvas>
                     </div>
                 `;
                 container.appendChild(colDiv);
 
-                const ctx = document.getElementById(`${source}_${key}_chart`).getContext('2d');
+                const ctx = document.getElementById(`iot_${key}_chart`).getContext('2d');
                 const columnData = data[key];
-
-                // Attempt to parse values to numbers (if they are strings)
                 const numericData = columnData.map(val => parseFloat(val));
 
-                // Create the chart
                 const chart = createChart(
                     ctx,
                     key,
@@ -221,7 +203,7 @@
                     numericData,
                     `hsl(${(idx * 40) % 360}, 70%, 50%)`
                 );
-                chartsArray.push(chart);
+                iotCharts.push(chart);
             });
         }
 
@@ -233,12 +215,16 @@
             const formattedStartDate = startDate ? new Date(startDate).toISOString() : '';
             const formattedEndDate = endDate ? new Date(endDate).toISOString() : '';
 
-            fetchData('zentra', formattedStartDate, formattedEndDate).then(zData => {
-                displayData('zentra', zData);
-            });
-
-            fetchData('thingspeak', formattedStartDate, formattedEndDate).then(tData => {
-                displayData('thingspeak', tData);
+            Promise.all([
+                fetchData('zentra', formattedStartDate, formattedEndDate),
+                fetchData('thingspeak', formattedStartDate, formattedEndDate)
+            ]).then(([zData, tData]) => {
+                const combinedData = {
+                    timestamp: zData.timestamp.concat(tData.timestamp),
+                    ...zData,
+                    ...tData
+                };
+                displayData(combinedData);
             });
         }
 
@@ -248,10 +234,8 @@
             updateAllGraphs(false);
         }
 
-        // Initial load
         updateAllGraphs(true);
 
-        // Auto refresh every 5 minutes if in live mode
         setInterval(function(){
             if (isLiveMode) updateAllGraphs(true);
         }, 300000);
