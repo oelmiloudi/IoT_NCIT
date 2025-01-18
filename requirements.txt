@@ -1,8 +1,9 @@
-Flask
-requests
-pymysql
-SQLAlchemy
-pandas
-apscheduler
-pytz
-gunicorn
+Flask==2.3.3
+pymysql==1.1.1
+SQLAlchemy==2.0.36
+pandas==1.5.3
+numpy==1.24.0
+requests==2.31.0
+APScheduler==3.11.0
+pytz==2023.3.post1
+gunicorn==23.0.0

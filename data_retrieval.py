@@ -11,20 +11,19 @@ ZENTRA_API_URL = "https://zentracloud.com/api/v4/get_readings/"
 ZENTRA_DEVICE_SN = "z6-26142"
 ZENTRA_API_KEY = "4447a79ff801823b5ba3dd151af75755668ce615"
 ZENTRA_START_DATE = "2025-01-16 00:00"
-ZENTRA_END_DATE = "2025-01-16 00:00"
+ZENTRA_END_DATE = "2025-01-18 00:00"
 
 THINGSPEAK_CHANNEL_ID = '2489769'
 THINGSPEAK_API_KEY = '37J7D7JP4SXSU6X2'
 THINGSPEAK_API_URL = f'https://api.thingspeak.com/channels/{THINGSPEAK_CHANNEL_ID}/feeds.json'
-THINGSPEAK_START_DATE = "2024-09-13 00:00:00-06:00"
-THINGSPEAK_END_DATE = "2025-01-16 00:00:00-06:00"
+THINGSPEAK_START_DATE = "2025-01-16 00:00:00-06:00"
+THINGSPEAK_END_DATE = "2025-01-18 00:00:00-06:00"
 
 DATABASE_CONFIG = {
-    'user': 'iot-project-db',  # Cloud SQL username
-    'password': 'IoTNCIT2024',  # Cloud SQL password
-    'host': '34.174.9.65', # Cloud Public IP
-    'port': 3306,  
-    'database': 'IoT_NCIT',  # DB
+    'user': 'iot-project-db',
+    'password': 'IoTNCIT2024',
+    'host': '34.174.9.65',  
+    'database': 'IoT_NCIT',
 }
 
 def zentra_retrieve_data_for_period(device_sn, period_start, period_end):
@@ -117,7 +116,7 @@ def zentra_pivot_and_insert_readings(df):
     # connect to the Google CloudSQL database
     engine = create_engine(
     f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@"
-    f"{DATABASE_CONFIG['host']}:{DATABASE_CONFIG['port']}/{DATABASE_CONFIG['database']}"
+    f"{DATABASE_CONFIG['host']}/{DATABASE_CONFIG['database']}"
 )
 
     try:
@@ -240,8 +239,9 @@ def thingspeak_create_database_and_table():
         # Google CloudSQL engine
         engine = create_engine(
     f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@"
-    f"{DATABASE_CONFIG['host']}:{DATABASE_CONFIG['port']}/{DATABASE_CONFIG['database']}"
+    f"{DATABASE_CONFIG['host']}/{DATABASE_CONFIG['database']}"
 )
+
         
         # create table if it doesn't exist
         create_table_query = """
@@ -311,8 +311,9 @@ def get_zentracloud_data_from_db(start_date, end_date):
     """
     engine = create_engine(
     f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@"
-    f"{DATABASE_CONFIG['host']}:{DATABASE_CONFIG['port']}/{DATABASE_CONFIG['database']}"
+    f"{DATABASE_CONFIG['host']}/{DATABASE_CONFIG['database']}"
 )
+
 
     with engine.connect() as conn:
         if start_date and end_date:
@@ -326,7 +327,9 @@ def get_zentracloud_data_from_db(start_date, end_date):
             df = pd.read_sql(query, conn, params={"start_date": start_date, "end_date": end_date})
         else:
             # If either start_date or end_date is empty, return all rows
-            df = pd.read_sql("SELECT * FROM SensorReadings ORDER BY timestamp ASC", conn)
+            query = text("SELECT * FROM SensorReadings ORDER BY timestamp ASC")
+            df = pd.read_sql(query, conn)
+
 
     return df
 
@@ -338,7 +341,7 @@ def get_thingspeak_data_from_db(start_date, end_date):
     """
     engine = create_engine(
     f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@"
-    f"{DATABASE_CONFIG['host']}:{DATABASE_CONFIG['port']}/{DATABASE_CONFIG['database']}"
+    f"{DATABASE_CONFIG['host']}/{DATABASE_CONFIG['database']}"
 )
 
     with engine.connect() as conn:
@@ -353,7 +356,9 @@ def get_thingspeak_data_from_db(start_date, end_date):
             df = pd.read_sql(query, conn, params={"start_date": start_date, "end_date": end_date})
         else:
             # If either start_date or end_date is empty, return all rows
-            df = pd.read_sql("SELECT * FROM ThingSpeak ORDER BY timestamp ASC", conn)
+            query = text("SELECT * FROM ThingSpeak ORDER BY timestamp ASC")
+            df = pd.read_sql(query, conn)
+
 
     return df
 
