@@ -2,6 +2,12 @@ from flask import Flask, render_template, request, jsonify
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime, timedelta
 import pytz
+
+from flask_talisman import Talisman
+
+app = Flask(__name__)
+Talisman(app)  # Enforces HTTPS
+
 from data_retrieval import (
     get_zentracloud_data_from_db,
     get_thingspeak_data_from_db
