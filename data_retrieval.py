@@ -10,14 +10,14 @@ from datetime import datetime, timedelta
 ZENTRA_API_URL = "https://zentracloud.com/api/v4/get_readings/"
 ZENTRA_DEVICE_SN = "z6-26142"
 ZENTRA_API_KEY = "4447a79ff801823b5ba3dd151af75755668ce615"
-ZENTRA_START_DATE = "2024-12-12 13:00"
-ZENTRA_END_DATE = "2024-12-25 00:00"
+ZENTRA_START_DATE = "2025-01-16 00:00"
+ZENTRA_END_DATE = "2025-01-16 00:00"
 
 THINGSPEAK_CHANNEL_ID = '2489769'
 THINGSPEAK_API_KEY = '37J7D7JP4SXSU6X2'
 THINGSPEAK_API_URL = f'https://api.thingspeak.com/channels/{THINGSPEAK_CHANNEL_ID}/feeds.json'
-THINGSPEAK_START_DATE = "2024-12-12 00:13:00-06:00"
-THINGSPEAK_END_DATE = "2024-12-25 00:00:00-06:00"
+THINGSPEAK_START_DATE = "2024-09-13 00:00:00-06:00"
+THINGSPEAK_END_DATE = "2025-01-16 00:00:00-06:00"
 
 def zentra_retrieve_data_for_period(device_sn, period_start, period_end):
     headers = {
@@ -87,8 +87,12 @@ def zentra_pivot_and_insert_readings(df):
         print("Error: ZENTRA DataFrame is empty or 'datetime' column is missing.")
         return
     
-    # convert 'datetime' to proper timestamp and set as index
-    df['timestamp'] = pd.to_datetime(df['datetime']).dt.floor('H') 
+    df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce', utc=True)  # Convert 'datetime' to UTC and handle invalid values
+    if df['datetime'].isnull().any():  
+        print(f"Warning: {df['datetime'].isnull().sum()} invalid datetime values were coerced to NaT.")
+
+    # Now perform the 'dt.floor' operation on the 'datetime' column
+    df['timestamp'] = df['datetime'].dt.floor('H')
 
     # create a unique column name for each sensor measurement
     df['sensor_measurement'] = df['sensor_name'] + " - " + df['measurement']
@@ -106,7 +110,7 @@ def zentra_pivot_and_insert_readings(df):
     engine = create_engine("mysql+pymysql://root:@localhost:3307/IoT_NCIT")
 
     try:
-        df_pivot.to_sql("readings", con=engine, if_exists="append", index=False)
+        df_pivot.to_sql("SensorReadings", con=engine, if_exists="append", index=False)
         print("ZENTRA data inserted into the SQL database successfully.")
     except Exception as e:
         print(f"Error inserting ZENTRA data into the database: {e}")
@@ -227,7 +231,7 @@ def thingspeak_create_database_and_table():
         
         # create table if it doesn't exist
         create_table_query = """
-        CREATE TABLE IF NOT EXISTS thingspeak_data (
+        CREATE TABLE IF NOT EXISTS ThingSpeak (
             id INT AUTO_INCREMENT PRIMARY KEY,
             timestamp DATETIME,
             Pitch FLOAT,
@@ -252,7 +256,7 @@ def thingspeak_insert_readings(df, engine):
         
     try:
         # insert data into the database, ignore duplicates
-        df.to_sql('thingspeak_data', con=engine, if_exists='append', index=False, 
+        df.to_sql('ThingSpeak', con=engine, if_exists='append', index=False, 
                   method='multi', chunksize=1000)
         print(f"Successfully inserted {len(df)} hourly ThingSpeak readings into the database.")
     except Exception as e:
@@ -297,7 +301,7 @@ def get_zentracloud_data_from_db(start_date, end_date):
         if start_date and end_date:
             query = text("""
                 SELECT *
-                FROM readings
+                FROM SensorReadings
                 WHERE timestamp >= :start_date
                   AND timestamp <= :end_date
                 ORDER BY timestamp ASC
@@ -305,7 +309,7 @@ def get_zentracloud_data_from_db(start_date, end_date):
             df = pd.read_sql(query, conn, params={"start_date": start_date, "end_date": end_date})
         else:
             # If either start_date or end_date is empty, return all rows
-            df = pd.read_sql("SELECT * FROM readings ORDER BY timestamp ASC", conn)
+            df = pd.read_sql("SELECT * FROM SensorReadings ORDER BY timestamp ASC", conn)
 
     return df
 
@@ -321,7 +325,7 @@ def get_thingspeak_data_from_db(start_date, end_date):
         if start_date and end_date:
             query = text("""
                 SELECT *
-                FROM thingspeak_data
+                FROM ThingSpeak
                 WHERE timestamp >= :start_date
                   AND timestamp <= :end_date
                 ORDER BY timestamp ASC
@@ -329,7 +333,7 @@ def get_thingspeak_data_from_db(start_date, end_date):
             df = pd.read_sql(query, conn, params={"start_date": start_date, "end_date": end_date})
         else:
             # If either start_date or end_date is empty, return all rows
-            df = pd.read_sql("SELECT * FROM thingspeak_data ORDER BY timestamp ASC", conn)
+            df = pd.read_sql("SELECT * FROM ThingSpeak ORDER BY timestamp ASC", conn)
 
     return df
 

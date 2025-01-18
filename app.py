@@ -15,8 +15,8 @@ def index():
 
 @app.route('/get_zentracloud_data')
 def get_zentracloud_data():
-    start = request.args.get('start', '')  # e.g. '2024-12-12 13:00'
-    end = request.args.get('end', '')      # e.g. '2024-12-25 00:00'
+    start = request.args.get('start', '') 
+    end = request.args.get('end', '')      
     
     # Call the function from data_retrieval.py
     df = get_zentracloud_data_from_db(start, end)
@@ -27,8 +27,8 @@ def get_zentracloud_data():
 
 @app.route('/get_thingspeak_data')
 def get_thingspeak_data():
-    start = request.args.get('start', '')  # e.g. '2024-12-12 00:13:00-06:00'
-    end = request.args.get('end', '')      # e.g. '2024-12-25 00:00:00-06:00'
+    start = request.args.get('start', '') 
+    end = request.args.get('end', '')     
     
     # Call the function from data_retrieval.py
     df = get_thingspeak_data_from_db(start, end)

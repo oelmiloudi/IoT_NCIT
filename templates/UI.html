@@ -185,9 +185,6 @@
             }
 
             const timestamps = data.timestamp.map(ts => new Date(ts));
-
-            // Create a chart for each column except timestamp
-            // We assume columns other than timestamp are numeric
             const keys = Object.keys(data).filter(k => k !== 'timestamp');
 
             if (keys.length === 0) {
