@@ -305,31 +305,23 @@ def thingspeak_retrieve_data_in_weekly_segments(start_date, end_date):
         time.sleep(1)
 
 def get_zentracloud_data_from_db(start_date, end_date):
-    """
-    Retrieve data from the 'readings' table (ZENTRA data) within a given date range.
-    If start_date or end_date is empty, retrieve all rows.
-    """
     engine = create_engine(
-    f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@"
-    f"{DATABASE_CONFIG['host']}/{DATABASE_CONFIG['database']}"
-)
-
+        f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@"
+        f"{DATABASE_CONFIG['host']}/{DATABASE_CONFIG['database']}"
+    )
 
     with engine.connect() as conn:
-        if start_date and end_date:
-            query = text("""
-                SELECT *
-                FROM SensorReadings
-                WHERE timestamp >= :start_date
-                  AND timestamp <= :end_date
-                ORDER BY timestamp ASC
-            """)
-            df = pd.read_sql(query, conn, params={"start_date": start_date, "end_date": end_date})
-        else:
-            # If either start_date or end_date is empty, return all rows
-            query = text("SELECT * FROM SensorReadings ORDER BY timestamp ASC")
-            df = pd.read_sql(query, conn)
+        query = text("""
+            SELECT *
+            FROM SensorReadings
+            WHERE timestamp >= :start_date AND timestamp <= :end_date
+            ORDER BY timestamp ASC
+        """)
+        df = pd.read_sql(query, conn, params={"start_date": start_date, "end_date": end_date})
 
+    # Handle null timestamps
+    df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+    df.dropna(subset=['timestamp'], inplace=True)
 
     return df
 
@@ -359,6 +351,9 @@ def get_thingspeak_data_from_db(start_date, end_date):
             query = text("SELECT * FROM ThingSpeak ORDER BY timestamp ASC")
             df = pd.read_sql(query, conn)
 
+    # Handle null timestamps
+    df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+    df.dropna(subset=['timestamp'], inplace=True)
 
     return df
 
