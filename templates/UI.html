@@ -52,9 +52,9 @@
     <div class="container">
         <div class="control-panel d-flex justify-content-center align-items-center">
             <label for="startDate" class="me-2 fw-bold">Start Date:</label>
-            <input type="datetime-local" id="startDate" class="form-control-sm me-3">
+            <input type="datetime-local" id="startDate" class="form-control-sm me-3" value="2024-09-20T00:00">
             <label for="endDate" class="me-2 fw-bold">End Date:</label>
-            <input type="datetime-local" id="endDate" class="form-control-sm me-3">
+            <input type="datetime-local" id="endDate" class="form-control-sm me-3" value="2025-01-21T00:00">            
             <button class="btn btn-success me-2" onclick="updateAllGraphs(false)">Update Graphs</button>
             <button class="btn btn-secondary" onclick="clearGraphs()">Clear</button>
         </div>
@@ -94,21 +94,31 @@
             const params = new URLSearchParams();
             if (start) params.append('start', start);
             if (end) params.append('end', end);
-
-            const url = source === 'zentra' ? '/get_zentracloud_data' : '/get_thingspeak_data';
+        
+            let url;
+            if (source === 'zentra') {
+                url = '/get_zentracloud_data';
+            } else if (source === 'thingspeak') {
+                url = '/get_thingspeak_data';
+            } else {
+                console.error(`Invalid source parameter: ${source}`);
+                return null;
+            }
+        
             try {
+                console.log(`Fetching data for source: ${source}, URL: ${url}, Params: ${params.toString()}`);
                 const response = await fetch(`${url}?${params.toString()}`);
                 if (!response.ok) {
-                    console.error(`Error fetching ${source} data: `, response.status, response.statusText);
+                    console.error(`Error fetching ${source} data:`, response.status, response.statusText);
                     return null;
                 }
                 const data = await response.json();
                 return data;
             } catch (error) {
-                console.error(`Failed to fetch ${source} data: `, error);
+                console.error(`Failed to fetch ${source} data:`, error);
                 return null;
             }
-        }
+        }                 
 
         function createChart(ctx, label, timestamps, data, borderColor) {
             return new Chart(ctx, {
@@ -213,24 +223,43 @@
 
         function updateAllGraphs(liveMode = true) {
             isLiveMode = liveMode;
+        
+            // Get the values from input fields
             const startDate = document.getElementById('startDate').value;
             const endDate = document.getElementById('endDate').value;
-
-            const formattedStartDate = startDate ? new Date(startDate).toISOString() : '';
-            const formattedEndDate = endDate ? new Date(endDate).toISOString() : '';
-
+        
+            // Debugging: Log the retrieved values
+            console.log(`Start Date: ${startDate}, End Date: ${endDate}`);
+        
+            // Ensure valid start and end dates
+            const formattedStartDate = startDate ? new Date(startDate).toISOString() : null;
+            const formattedEndDate = endDate ? new Date(endDate).toISOString() : null;
+        
+            if (!formattedStartDate || !formattedEndDate) {
+                console.error("Start and End dates must be provided!");
+                return;
+            }
+        
             Promise.all([
                 fetchData('zentra', formattedStartDate, formattedEndDate),
                 fetchData('thingspeak', formattedStartDate, formattedEndDate)
             ]).then(([zData, tData]) => {
+                if (!zData || !tData) {
+                    console.error('Error: One or both data sources returned null.');
+                    return;
+                }
+        
                 const combinedData = {
-                    timestamp: zData.timestamp.concat(tData.timestamp),
+                    timestamp: zData.timestamp.concat(tData.timestamp || []),
                     ...zData,
                     ...tData
                 };
                 displayData(combinedData);
+            }).catch(error => {
+                console.error('Error updating graphs:', error);
             });
         }
+             
 
         function clearGraphs() {
             document.getElementById('startDate').value = '';

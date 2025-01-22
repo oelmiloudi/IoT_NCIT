@@ -6,6 +6,7 @@ import time
 import json
 from io import StringIO
 from datetime import datetime, timedelta
+import os
 
 ZENTRA_API_URL = "https://zentracloud.com/api/v4/get_readings/"
 ZENTRA_DEVICE_SN = "z6-26142"
@@ -20,11 +21,12 @@ THINGSPEAK_START_DATE = "2025-01-16 00:00:00-06:00"
 THINGSPEAK_END_DATE = "2025-01-18 00:00:00-06:00"
 
 DATABASE_CONFIG = {
-    'user': 'iot-project-db',
-    'password': 'IoTNCIT2024',
-    'host': '34.174.9.65',  
-    'database': 'IoT_NCIT',
+    'user': os.getenv('DB_USER', 'iot-project-db'),
+    'password': os.getenv('DB_PASSWORD', 'IoTNCIT2024'),
+    'host': os.getenv('DB_HOST', '/cloudsql/the-capsule-448201-j6:us-south1:iot-project-db'),  
+    'database': os.getenv('DB_NAME', 'IoT_NCIT'),
 }
+
 
 def zentra_retrieve_data_for_period(device_sn, period_start, period_end):
     headers = {
@@ -115,8 +117,8 @@ def zentra_pivot_and_insert_readings(df):
 
     # connect to the Google CloudSQL database
     engine = create_engine(
-    f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@"
-    f"{DATABASE_CONFIG['host']}/{DATABASE_CONFIG['database']}"
+    f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@/"
+    f"{DATABASE_CONFIG['database']}?unix_socket={DATABASE_CONFIG['host']}"
 )
 
     try:
@@ -238,8 +240,8 @@ def thingspeak_create_database_and_table():
     try:
         # Google CloudSQL engine
         engine = create_engine(
-    f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@"
-    f"{DATABASE_CONFIG['host']}/{DATABASE_CONFIG['database']}"
+    f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@/"
+    f"{DATABASE_CONFIG['database']}?unix_socket={DATABASE_CONFIG['host']}"
 )
 
         
@@ -306,9 +308,9 @@ def thingspeak_retrieve_data_in_weekly_segments(start_date, end_date):
 
 def get_zentracloud_data_from_db(start_date, end_date):
     engine = create_engine(
-        f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@"
-        f"{DATABASE_CONFIG['host']}/{DATABASE_CONFIG['database']}"
-    )
+    f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@/"
+    f"{DATABASE_CONFIG['database']}?unix_socket={DATABASE_CONFIG['host']}"
+)
 
     with engine.connect() as conn:
         query = text("""
@@ -332,9 +334,10 @@ def get_thingspeak_data_from_db(start_date, end_date):
     If start_date or end_date is empty, retrieve all rows.
     """
     engine = create_engine(
-    f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@"
-    f"{DATABASE_CONFIG['host']}/{DATABASE_CONFIG['database']}"
+    f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@/"
+    f"{DATABASE_CONFIG['database']}?unix_socket={DATABASE_CONFIG['host']}"
 )
+
 
     with engine.connect() as conn:
         if start_date and end_date:
