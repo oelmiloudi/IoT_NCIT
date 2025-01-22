@@ -21,30 +21,6 @@ app = Flask(__name__)
 def index():
     return render_template('UI.html')
 
-DATABASE_CONFIG = {
-    'user': os.getenv('DB_USER', 'iot-project-db'),
-    'password': os.getenv('DB_PASSWORD', 'IoTNCIT2024'),
-    'host': os.getenv('DB_HOST', '/cloudsql/the-capsule-448201-j6:us-south1:iot-project-db'), 
-    'database': os.getenv('DB_NAME', 'IoT_NCIT'),
-}
-
-
-@app.route('/test_db_connection')
-def test_db_connection():
-    try:
-        engine = create_engine(
-    f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@/"
-    f"{DATABASE_CONFIG['database']}?unix_socket={DATABASE_CONFIG['host']}"
-)
-        with engine.connect() as conn:
-            result = conn.execute(text("SELECT 1"))
-            app.logger.info("Database connection successful: " + str(result.fetchall()))
-        return jsonify({'status': 'success'}), 200
-    except Exception as e:
-        app.logger.error(f"Database connection failed: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
-
 @app.route('/get_zentracloud_data')
 def get_zentracloud_data():
     try:
