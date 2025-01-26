@@ -8,3 +8,5 @@ APScheduler==3.11.0
 pytz==2023.3.post1
 gunicorn==23.0.0
 flask_talisman
+python-dotenv==1.0.0
+
