@@ -7,17 +7,34 @@ import json
 from io import StringIO
 from datetime import datetime, timedelta
 import os
-from dotenv import load_dotenv
-load_dotenv()
 
 ZENTRA_API_KEY = os.getenv('ZENTRA_API_KEY')
 THINGSPEAK_API_KEY = os.getenv('THINGSPEAK_API_KEY')
 DATABASE_CONFIG = {
     'user': os.getenv('DB_USER'),
     'password': os.getenv('DB_PASSWORD'),
-    'host': os.getenv('DB_HOST'),
+    'host': os.getenv('DB_HOST'),  
     'database': os.getenv('DB_NAME'),
+    'port': os.getenv('DB_PORT') 
 }
+
+
+if DATABASE_CONFIG['host'].startswith('/cloudsql/'):
+    # Use Unix socket (e.g. Cloud Run or GCE/GKE with mounted socket)
+    connection_string = (
+        f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@/"
+        f"{DATABASE_CONFIG['database']}?unix_socket={DATABASE_CONFIG['host']}"
+    )
+else:
+    # Use TCP (public or private IP, or localhost)
+    connection_string = (
+        f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@"
+        f"{DATABASE_CONFIG['host']}:{DATABASE_CONFIG['port']}/{DATABASE_CONFIG['database']}"
+    )
+
+
+# Create the SQLAlchemy engine
+engine = create_engine(connection_string)
 
 
 ZENTRA_API_URL = "https://zentracloud.com/api/v4/get_readings/"
@@ -94,7 +111,7 @@ def zentra_retrieve_data_for_period(device_sn, period_start, period_end):
         print("No ZENTRA data was retrieved for this period.")
         return pd.DataFrame()
 
-def zentra_pivot_and_insert_readings(df):
+def zentra_pivot_and_insert_readings(df, engine):
     if df.empty or 'datetime' not in df.columns:
         print("Error: ZENTRA DataFrame is empty or 'datetime' column is missing.")
         return
@@ -117,12 +134,6 @@ def zentra_pivot_and_insert_readings(df):
 
     # rename columns to remove spaces and make them SQL-friendly
     df_pivot.columns = [col.replace(" ", "_") for col in df_pivot.columns]
-
-    # connect to the Google CloudSQL database
-    engine = create_engine(
-    f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@/"
-    f"{DATABASE_CONFIG['database']}?unix_socket={DATABASE_CONFIG['host']}"
-)
 
     try:
         df_pivot.to_sql("SensorReadings", con=engine, if_exists="append", index=False)
@@ -239,15 +250,9 @@ def thingspeak_retrieve_data_for_period(start_date, end_date):
         print(f"Error processing ThingSpeak data: {e}")
         return pd.DataFrame()
 
-def thingspeak_create_database_and_table():
+def thingspeak_create_database_and_table(engine):
     try:
-        # Google CloudSQL engine
-        engine = create_engine(
-    f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@/"
-    f"{DATABASE_CONFIG['database']}?unix_socket={DATABASE_CONFIG['host']}"
-)
 
-        
         # create table if it doesn't exist
         create_table_query = """
         CREATE TABLE IF NOT EXISTS ThingSpeak (
@@ -281,7 +286,7 @@ def thingspeak_insert_readings(df, engine):
     except Exception as e:
         print(f"Error inserting ThingSpeak data into database: {e}")
 
-def thingspeak_retrieve_data_in_weekly_segments(start_date, end_date):
+def thingspeak_retrieve_data_in_weekly_segments(start_date, end_date, engine):
     # create database and table
     engine = thingspeak_create_database_and_table()
     if not engine:
@@ -309,11 +314,7 @@ def thingspeak_retrieve_data_in_weekly_segments(start_date, end_date):
         # add a small delay to avoid hitting rate limits
         time.sleep(1)
 
-def get_zentracloud_data_from_db(start_date, end_date):
-    engine = create_engine(
-    f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@/"
-    f"{DATABASE_CONFIG['database']}?unix_socket={DATABASE_CONFIG['host']}"
-)
+def get_zentracloud_data_from_db(start_date, end_date, engine):
 
     with engine.connect() as conn:
         query = text("""
@@ -331,17 +332,11 @@ def get_zentracloud_data_from_db(start_date, end_date):
     return df
 
 
-def get_thingspeak_data_from_db(start_date, end_date):
+def get_thingspeak_data_from_db(start_date, end_date, engine):
     """
     Retrieve data from the 'thingspeak_data' table within a given date range.
     If start_date or end_date is empty, retrieve all rows.
     """
-    engine = create_engine(
-    f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@/"
-    f"{DATABASE_CONFIG['database']}?unix_socket={DATABASE_CONFIG['host']}"
-)
-
-
     with engine.connect() as conn:
         if start_date and end_date:
             query = text("""
