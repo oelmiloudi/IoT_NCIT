@@ -1,3 +1,6 @@
+# Author: Omar El Miloudi
+# The below program estabilishes an pipeline that retrieves IoT sensor readings from their cloud instances and maps it to our Google Cloud SQL DB instance.
+
 import requests
 import pymysql
 from sqlalchemy import create_engine, text
@@ -20,20 +23,20 @@ DATABASE_CONFIG = {
 
 
 if DATABASE_CONFIG['host'].startswith('/cloudsql/'):
-    # Use Unix socket (e.g. Cloud Run or GCE/GKE with mounted socket)
+    # use Unix socket (cloud run mounted socket)
     connection_string = (
         f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@/"
         f"{DATABASE_CONFIG['database']}?unix_socket={DATABASE_CONFIG['host']}"
     )
 else:
-    # Use TCP (public or private IP, or localhost)
+    # use TCP (localhost for local dev)
     connection_string = (
         f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@"
         f"{DATABASE_CONFIG['host']}:{DATABASE_CONFIG['port']}/{DATABASE_CONFIG['database']}"
     )
 
 
-# Create the SQLAlchemy engine
+# create the SQLAlchemy engine
 engine = create_engine(connection_string)
 
 
@@ -92,7 +95,7 @@ def zentra_retrieve_data_for_period(device_sn, period_start, period_end):
                 else:
                     print(f"ZENTRA page {page_num} retrieved with {len(df)} rows for period {period_start} to {period_end}.")
                     all_data.append(df)
-                    page_num += 1  # Move to the next page
+                    page_num += 1  # move to the next page
             else:
                 print("Error: 'data' not found in ZENTRA response.")
                 break
@@ -116,11 +119,11 @@ def zentra_pivot_and_insert_readings(df, engine):
         print("Error: ZENTRA DataFrame is empty or 'datetime' column is missing.")
         return
     
-    df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce', utc=True)  # Convert 'datetime' to UTC and handle invalid values
+    df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce', utc=True)  # convert 'datetime' to UTC and handle invalid values
     if df['datetime'].isnull().any():  
         print(f"Warning: {df['datetime'].isnull().sum()} invalid datetime values were coerced to NaT.")
 
-    # Now perform the 'dt.floor' operation on the 'datetime' column
+    # now perform the 'dt.floor' operation on the 'datetime' column
     df['timestamp'] = df['datetime'].dt.floor('H')
 
     # create a unique column name for each sensor measurement
@@ -325,7 +328,7 @@ def get_zentracloud_data_from_db(start_date, end_date, engine):
         """)
         df = pd.read_sql(query, conn, params={"start_date": start_date, "end_date": end_date})
 
-    # Handle null timestamps
+    # handle null timestamps
     df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
     df.dropna(subset=['timestamp'], inplace=True)
 
@@ -348,20 +351,20 @@ def get_thingspeak_data_from_db(start_date, end_date, engine):
             """)
             df = pd.read_sql(query, conn, params={"start_date": start_date, "end_date": end_date})
         else:
-            # If either start_date or end_date is empty, return all rows
+            # if either start_date or end_date is empty, return all rows
             query = text("SELECT * FROM ThingSpeak ORDER BY timestamp ASC")
             df = pd.read_sql(query, conn)
 
-    # Handle null timestamps
+    # handle null timestamps
     df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
     df.dropna(subset=['timestamp'], inplace=True)
 
     return df
 
 if __name__ == "__main__":
-    # First retrieve and insert ZENTRA data
+    # first retrieve and insert ZENTRA data
     zentra_retrieve_data_in_weekly_segments(ZENTRA_DEVICE_SN, ZENTRA_START_DATE, ZENTRA_END_DATE)
     
-    # Then retrieve and insert ThingSpeak data
+    # then retrieve and insert ThingSpeak data
     thingspeak_retrieve_data_in_weekly_segments(THINGSPEAK_START_DATE, THINGSPEAK_END_DATE)
     pass

@@ -8,7 +8,7 @@ import os
 from flask_talisman import Talisman
 
 app = Flask(__name__)
-Talisman(app)  # Enforces HTTPS
+Talisman(app)  # enforces HTTPS
 
 from data_retrieval import (
     get_zentracloud_data_from_db,
@@ -27,20 +27,20 @@ DATABASE_CONFIG = {
 
 
 if DATABASE_CONFIG['host'].startswith('/cloudsql/'):
-    # Use Unix socket (e.g. Cloud Run or GCE/GKE with mounted socket)
+    # use Unix socket (cloud run mounted socket)
     connection_string = (
         f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@/"
         f"{DATABASE_CONFIG['database']}?unix_socket={DATABASE_CONFIG['host']}"
     )
 else:
-    # Use TCP (public or private IP, or localhost)
+    # use TCP (localhost for local dev)
     connection_string = (
         f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@"
         f"{DATABASE_CONFIG['host']}:{DATABASE_CONFIG['port']}/{DATABASE_CONFIG['database']}"
     )
 
 
-# Create the SQLAlchemy engine
+# create the SQLAlchemy engine
 engine = create_engine(connection_string)
 
 @app.route('/')
@@ -53,12 +53,12 @@ def get_zentracloud_data():
         start = request.args.get('start', '')
         end = request.args.get('end', '')
 
-        # Validate date parameters
+        # validate date parameters
         if not start or not end:
             app.logger.warning("Missing or empty start_date and/or end_date in request")
             return jsonify({'error': 'Missing start_date or end_date'}), 400
 
-        # Fetch data from the database
+        # fetch data from the database
         app.logger.info(f"Fetching ZentraCloud data from {start} to {end}")
         df = get_zentracloud_data_from_db(start, end, engine)
 
