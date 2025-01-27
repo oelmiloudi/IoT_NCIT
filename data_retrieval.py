@@ -1,5 +1,5 @@
 # Author: Omar El Miloudi
-# The below program estabilishes an pipeline that retrieves IoT sensor readings from their cloud instances and maps it to our Google Cloud SQL DB instance.
+# The below program estabilishes a pipeline that retrieves IoT sensor readings from their cloud instances and maps it to our Google Cloud SQL DB instance.
 
 import requests
 import pymysql
