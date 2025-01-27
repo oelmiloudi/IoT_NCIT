@@ -2,12 +2,12 @@ This repository contains the protoype software system for monitoring of on-site 
 Domain: https://readings.pvamu-ncit-iot.com/
 
 Authors:
-Omar El Miloudi - Undergraduate Researcher
+Omar El Miloudi - Undergraduate Researcher    |     
 Rahul Debnath - Graduate Researcher
 
 More on the scope of the project:
 https://rip.trb.org/View/2244371
 
 Technical Architecture:
-Front-end: Javascript, HTML, CSS
+Front-end: Javascript, HTML, CSS    |    
 Back-end: Python, Flask, Google Cloud SDK
