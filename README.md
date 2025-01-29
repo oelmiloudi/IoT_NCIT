@@ -1,4 +1,4 @@
-This repository contains the protoype software system for monitoring of on-site IoT sensors to detect changes in structural integrity of sloped embankments.
+This repository contains the protoype software system for the monitoring of on-site IoT sensors to detect changes in structural integrity of sloped embankments.
 Domain: https://readings.pvamu-ncit-iot.com/
 
 Authors:
