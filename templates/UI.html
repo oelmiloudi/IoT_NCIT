@@ -44,9 +44,9 @@
 <body>
 
     <nav class="navbar navbar-expand-lg navbar-dark bg-success">
-      <div class="container-fluid">
-        <a class="navbar-brand" href="#">PVAMU Testing Site (IoT Sensor Readings)</a>
-      </div>
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">PVAMU Testing Site (IoT Sensor Readings)</a>
+        </div>
     </nav>
 
     <div class="container">
@@ -59,29 +59,8 @@
             <button class="btn btn-secondary" onclick="clearGraphs()">Clear</button>
         </div>
 
-        <ul class="nav nav-tabs" id="dataTabs" role="tablist">
-          <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="iot-tab" data-bs-toggle="tab" data-bs-target="#iot" type="button" role="tab" aria-controls="iot" aria-selected="true">On-Site Readings</button>
-          </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link" id="slope-tab" data-bs-toggle="tab" data-bs-target="#slope" type="button" role="tab" aria-controls="slope" aria-selected="false">Slope Failure Detection</button>
-          </li>
-        </ul>
-
-        <div class="tab-content" id="dataTabsContent">
-          <!-- On-Site IoT Readings Tab -->
-          <div class="tab-pane fade show active" id="iot" role="tabpanel" aria-labelledby="iot-tab">
-            <div class="row mt-4" id="iotChartsContainer">
-              <!-- Charts for both Zentra and ThingSpeak will be injected here dynamically -->
-            </div>
-            <div class="no-data" id="iotNoData" style="display:none;">No Data Available</div>
-          </div>
-
-          <!-- Slope Failure Detection Tab -->
-          <div class="tab-pane fade" id="slope" role="tabpanel" aria-labelledby="slope-tab">
-            <!-- Content for Slope Failure Detection will be added here in the future -->
-          </div>
-        </div>
+        <div class="row mt-4" id="iotChartsContainer"></div>
+        <div class="no-data" id="iotNoData" style="display:none;">No Data Available</div>
     </div>
 
     <!-- Bootstrap JS and dependencies -->
@@ -90,11 +69,22 @@
         let isLiveMode = true;
         const iotCharts = [];
 
+        // Mapping of key -> desired Y-axis label
+        const yAxisLabels = {
+            'Pitch': 'Degrees',
+            'Roll': 'Degrees',
+            'TEROS_21_-_Soil_Temperature': '°C',
+            'TEROS_11_-_Soil_Temperature': '°C',
+            'Barometer_-_Logger_Temperature': '°C',
+            'TEROS_11_-_Water_Content': 'm^3/m^3',
+            'TEROS_21_-_Matric_Potential': 'kPa'
+        };
+
         async function fetchData(source, start, end) {
             const params = new URLSearchParams();
             if (start) params.append('start', start);
             if (end) params.append('end', end);
-        
+
             let url;
             if (source === 'zentra') {
                 url = '/get_zentracloud_data';
@@ -104,7 +94,7 @@
                 console.error(`Invalid source parameter: ${source}`);
                 return null;
             }
-        
+
             try {
                 console.log(`Fetching data for source: ${source}, URL: ${url}, Params: ${params.toString()}`);
                 const response = await fetch(`${url}?${params.toString()}`);
@@ -112,15 +102,14 @@
                     console.error(`Error fetching ${source} data:`, response.status, response.statusText);
                     return null;
                 }
-                const data = await response.json();
-                return data;
+                return await response.json();
             } catch (error) {
                 console.error(`Failed to fetch ${source} data:`, error);
                 return null;
             }
-        }                 
+        }
 
-        function createChart(ctx, label, timestamps, data, borderColor) {
+        function createChart(ctx, label, yAxisLabel, timestamps, data, borderColor) {
             return new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -153,7 +142,7 @@
                             beginAtZero: false,
                             title: {
                                 display: true,
-                                text: 'Value'
+                                text: yAxisLabel
                             }
                         }
                     },
@@ -171,9 +160,7 @@
             chartsArray.forEach(ch => ch.destroy());
             chartsArray.length = 0;
 
-            const container = document.getElementById(containerId);
-            container.innerHTML = '';
-
+            document.getElementById(containerId).innerHTML = '';
             document.getElementById(noDataId).style.display = 'none';
         }
 
@@ -194,8 +181,19 @@
             }
 
             const container = document.getElementById('iotChartsContainer');
+            let validChartCount = 0;
 
             keys.forEach((key, idx) => {
+                const yAxisLabel = yAxisLabels[key] || 'Value';
+
+                // Skip creating the chart if it has a generic "Value" label
+                if (yAxisLabel === 'Value') {
+                    console.log(`Skipping chart for ${key} as it has no defined Y-axis label.`);
+                    return;
+                }
+
+                validChartCount++;
+
                 const colDiv = document.createElement('div');
                 colDiv.className = 'col-md-6';
                 colDiv.innerHTML = `
@@ -207,39 +205,40 @@
                 container.appendChild(colDiv);
 
                 const ctx = document.getElementById(`iot_${key}_chart`).getContext('2d');
-                const columnData = data[key];
-                const numericData = columnData.map(val => parseFloat(val));
+                const numericData = data[key].map(val => parseFloat(val));
 
                 const chart = createChart(
                     ctx,
                     key,
+                    yAxisLabel,
                     timestamps,
                     numericData,
                     `hsl(${(idx * 40) % 360}, 70%, 50%)`
                 );
                 iotCharts.push(chart);
             });
+
+            if (validChartCount === 0) {
+                document.getElementById('iotNoData').style.display = 'block';
+            }
         }
 
         function updateAllGraphs(liveMode = true) {
             isLiveMode = liveMode;
-        
-            // Get the values from input fields
+
             const startDate = document.getElementById('startDate').value;
             const endDate = document.getElementById('endDate').value;
-        
-            // Debugging: Log the retrieved values
+
             console.log(`Start Date: ${startDate}, End Date: ${endDate}`);
-        
-            // Ensure valid start and end dates
+
             const formattedStartDate = startDate ? new Date(startDate).toISOString() : null;
             const formattedEndDate = endDate ? new Date(endDate).toISOString() : null;
-        
+
             if (!formattedStartDate || !formattedEndDate) {
                 console.error("Start and End dates must be provided!");
                 return;
             }
-        
+
             Promise.all([
                 fetchData('zentra', formattedStartDate, formattedEndDate),
                 fetchData('thingspeak', formattedStartDate, formattedEndDate)
@@ -248,18 +247,14 @@
                     console.error('Error: One or both data sources returned null.');
                     return;
                 }
-        
-                const combinedData = {
+
+                displayData({
                     timestamp: zData.timestamp.concat(tData.timestamp || []),
                     ...zData,
                     ...tData
-                };
-                displayData(combinedData);
-            }).catch(error => {
-                console.error('Error updating graphs:', error);
-            });
+                });
+            }).catch(error => console.error('Error updating graphs:', error));
         }
-             
 
         function clearGraphs() {
             document.getElementById('startDate').value = '';
@@ -268,10 +263,7 @@
         }
 
         updateAllGraphs(true);
-
-        setInterval(function(){
-            if (isLiveMode) updateAllGraphs(true);
-        }, 300000);
+        setInterval(() => { if (isLiveMode) updateAllGraphs(true); }, 300000);
     </script>
 </body>
 </html>
