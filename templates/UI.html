@@ -54,7 +54,18 @@
             <label for="startDate" class="me-2 fw-bold">Start Date:</label>
             <input type="datetime-local" id="startDate" class="form-control-sm me-3" value="2024-09-20T00:00">
             <label for="endDate" class="me-2 fw-bold">End Date:</label>
-            <input type="datetime-local" id="endDate" class="form-control-sm me-3" value="2025-01-21T00:00">            
+            <input type="datetime-local" id="endDate" class="form-control-sm me-3">
+            <script>
+            document.addEventListener('DOMContentLoaded', function() {
+            const now = new Date();
+            const offset = now.getTimezoneOffset();
+            // Format date/time for datetime-local (yyyy-MM-ddTHH:mm)
+            const localISOTime = new Date(now.getTime() - offset * 60 * 1000)
+                               .toISOString()
+                               .slice(0,16);
+            document.getElementById('endDate').value = localISOTime;
+            });
+            </script>
             <button class="btn btn-success me-2" onclick="updateAllGraphs(false)">Update Graphs</button>
             <button class="btn btn-secondary" onclick="clearGraphs()">Clear</button>
         </div>
