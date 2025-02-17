@@ -10,6 +10,10 @@ import json
 from io import StringIO
 from datetime import datetime, timedelta
 import os
+from dotenv import load_dotenv
+
+dotenv_path = os.path.join(os.path.dirname(__file__), "credentials.env")
+load_dotenv(dotenv_path)
 
 ZENTRA_API_KEY = os.getenv('ZENTRA_API_KEY')
 THINGSPEAK_API_KEY = os.getenv('THINGSPEAK_API_KEY')
@@ -21,16 +25,7 @@ DATABASE_CONFIG = {
     'port': os.getenv('DB_PORT') 
 }
 
-
-if DATABASE_CONFIG['host'].startswith('/cloudsql/'):
-    # use Unix socket (cloud run mounted socket)
-    connection_string = (
-        f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@/"
-        f"{DATABASE_CONFIG['database']}?unix_socket={DATABASE_CONFIG['host']}"
-    )
-else:
-    # use TCP (localhost for local dev)
-    connection_string = (
+connection_string = (
         f"mysql+pymysql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}@"
         f"{DATABASE_CONFIG['host']}:{DATABASE_CONFIG['port']}/{DATABASE_CONFIG['database']}"
     )
@@ -42,13 +37,13 @@ engine = create_engine(connection_string)
 
 ZENTRA_API_URL = "https://zentracloud.com/api/v4/get_readings/"
 ZENTRA_DEVICE_SN = "z6-26142"
-ZENTRA_START_DATE = "2025-01-16 00:00"
-ZENTRA_END_DATE = "2025-01-21 00:00"
+ZENTRA_START_DATE = "2025-1-21 00:00"
+ZENTRA_END_DATE = "2025-02-17 00:00"
 
 THINGSPEAK_CHANNEL_ID = '2489769'
 THINGSPEAK_API_URL = f'https://api.thingspeak.com/channels/{THINGSPEAK_CHANNEL_ID}/feeds.json'
-THINGSPEAK_START_DATE = "2025-01-16 00:00:00-06:00"
-THINGSPEAK_END_DATE = "2025-01-21 00:00:00-06:00"
+THINGSPEAK_START_DATE = "2025-01-21 00:00:00-06:00"
+THINGSPEAK_END_DATE = "2025-02-17 00:00:00-06:00"
 
 
 def zentra_retrieve_data_for_period(device_sn, period_start, period_end):
@@ -87,15 +82,26 @@ def zentra_retrieve_data_for_period(device_sn, period_start, period_end):
 
         try:
             content = response.json()
+
             if 'data' in content:
-                df = pd.read_json(StringIO(content['data']), orient='split')
-                if df.empty:
-                    print("No more ZENTRA data available for this period.")
+                try:
+                    # Convert the dictionary into a JSON string before parsing
+                    if isinstance(content['data'], str):
+                        df = pd.read_json(StringIO(content['data']), orient='split')  # Directly parse the string
+                    else:
+                        df = pd.DataFrame(content['data'])  # Convert directly if it's a dict/list
+
+
+                    if df.empty:
+                        print("No more ZENTRA data available for this period.")
+                        break
+                    else:
+                        print(f"ZENTRA page {page_num} retrieved with {len(df)} rows for period {period_start} to {period_end}.")
+                        all_data.append(df)
+                        page_num += 1  # Move to the next page
+                except Exception as e:
+                    print(f"Error converting ZENTRA data to DataFrame: {e}")
                     break
-                else:
-                    print(f"ZENTRA page {page_num} retrieved with {len(df)} rows for period {period_start} to {period_end}.")
-                    all_data.append(df)
-                    page_num += 1  # move to the next page
             else:
                 print("Error: 'data' not found in ZENTRA response.")
                 break
@@ -113,6 +119,7 @@ def zentra_retrieve_data_for_period(device_sn, period_start, period_end):
     else:
         print("No ZENTRA data was retrieved for this period.")
         return pd.DataFrame()
+
 
 def zentra_pivot_and_insert_readings(df, engine):
     if df.empty or 'datetime' not in df.columns:
@@ -160,7 +167,7 @@ def zentra_retrieve_data_in_weekly_segments(device_sn, start_date, end_date):
         readings_df = zentra_retrieve_data_for_period(device_sn, period_start, period_end)
         
         if not readings_df.empty:
-            zentra_pivot_and_insert_readings(readings_df)
+            zentra_pivot_and_insert_readings(readings_df, engine)
         else:
             print(f"No ZENTRA data retrieved for period: {period_start} to {period_end}.")
 
@@ -290,10 +297,6 @@ def thingspeak_insert_readings(df, engine):
         print(f"Error inserting ThingSpeak data into database: {e}")
 
 def thingspeak_retrieve_data_in_weekly_segments(start_date, end_date, engine):
-    # create database and table
-    engine = thingspeak_create_database_and_table()
-    if not engine:
-        return
         
     # create date ranges for each week
     date_ranges = pd.date_range(start=start_date, end=end_date, freq='7D').tolist()
@@ -336,10 +339,7 @@ def get_zentracloud_data_from_db(start_date, end_date, engine):
 
 
 def get_thingspeak_data_from_db(start_date, end_date, engine):
-    """
-    Retrieve data from the 'thingspeak_data' table within a given date range.
-    If start_date or end_date is empty, retrieve all rows.
-    """
+
     with engine.connect() as conn:
         if start_date and end_date:
             query = text("""
@@ -366,5 +366,5 @@ if __name__ == "__main__":
     zentra_retrieve_data_in_weekly_segments(ZENTRA_DEVICE_SN, ZENTRA_START_DATE, ZENTRA_END_DATE)
     
     # then retrieve and insert ThingSpeak data
-    thingspeak_retrieve_data_in_weekly_segments(THINGSPEAK_START_DATE, THINGSPEAK_END_DATE)
+    thingspeak_retrieve_data_in_weekly_segments(THINGSPEAK_START_DATE, THINGSPEAK_END_DATE, engine)
     pass
