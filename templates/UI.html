@@ -272,8 +272,10 @@
             document.getElementById('endDate').value = '';
             updateAllGraphs(false);
         }
+        document.addEventListener("DOMContentLoaded", function() {
+            updateAllGraphs(false); // Automatically update charts on page load
+        });
 
-        updateAllGraphs(true);
         setInterval(() => { if (isLiveMode) updateAllGraphs(true); }, 300000);
     </script>
 </body>
