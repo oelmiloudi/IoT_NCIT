@@ -121,13 +121,17 @@
         }
 
         function createChart(ctx, label, yAxisLabel, timestamps, data, borderColor) {
+            const chartData = timestamps.map((timestamp, index) => ({
+                x: timestamp,
+                y: data[index]
+            }));
+        
             return new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: timestamps,
                     datasets: [{
                         label: label,
-                        data: data,
+                        data: chartData, 
                         borderColor: borderColor,
                         borderWidth: 1,
                         fill: false
@@ -254,17 +258,74 @@
                 fetchData('zentra', formattedStartDate, formattedEndDate),
                 fetchData('thingspeak', formattedStartDate, formattedEndDate)
             ]).then(([zData, tData]) => {
-                if (!zData || !tData) {
-                    console.error('Error: One or both data sources returned null.');
+                if (!zData && !tData) {
+                    console.error('Error: Both data sources returned null.');
+                    document.getElementById('iotNoData').style.display = 'block';
                     return;
                 }
 
-                displayData({
-                    timestamp: zData.timestamp.concat(tData.timestamp || []),
-                    ...zData,
-                    ...tData
+                const zentraData = zData || { timestamp: [] };
+                const thingspeakData = tData || { timestamp: [] };
+
+                const mergedData = mergeDataSets(zentraData, thingspeakData);
+                displayData(mergedData);
+            }).catch(error => {
+                console.error('Error updating graphs:', error);
+                document.getElementById('iotNoData').style.display = 'block';
+            });
+        }
+
+        function mergeDataSets(zentraData, thingspeakData) {
+            const timestampMap = new Map();
+            
+            if (zentraData && zentraData.timestamp) {
+                zentraData.timestamp.forEach((ts, idx) => {
+                    if (!timestampMap.has(ts)) {
+                        timestampMap.set(ts, {});
+                    }
+                    
+                    Object.keys(zentraData).forEach(key => {
+                        if (key !== 'timestamp' && zentraData[key] && zentraData[key][idx] !== undefined) {
+                            timestampMap.get(ts)[key] = zentraData[key][idx];
+                        }
+                    });
                 });
-            }).catch(error => console.error('Error updating graphs:', error));
+            }
+            
+            if (thingspeakData && thingspeakData.timestamp) {
+                thingspeakData.timestamp.forEach((ts, idx) => {
+                    if (!timestampMap.has(ts)) {
+                        timestampMap.set(ts, {});
+                    }
+                    
+                    Object.keys(thingspeakData).forEach(key => {
+                        if (key !== 'timestamp' && thingspeakData[key] && thingspeakData[key][idx] !== undefined) {
+                            timestampMap.get(ts)[key] = thingspeakData[key][idx];
+                        }
+                    });
+                });
+            }
+            
+            const mergedTimestamps = Array.from(timestampMap.keys()).sort();
+            const result = { timestamp: mergedTimestamps };
+
+            const allMetrics = new Set();
+            Object.keys(zentraData || {}).forEach(key => { if (key !== 'timestamp') allMetrics.add(key); });
+            Object.keys(thingspeakData || {}).forEach(key => { if (key !== 'timestamp') allMetrics.add(key); });
+            
+            allMetrics.forEach(metric => {
+                result[metric] = [];
+            });
+            
+            mergedTimestamps.forEach(ts => {
+                const dataPoint = timestampMap.get(ts);
+                
+                allMetrics.forEach(metric => {
+                    result[metric].push(dataPoint[metric] !== undefined ? dataPoint[metric] : null);
+                });
+            });
+            
+            return result;
         }
 
         function clearGraphs() {
@@ -273,7 +334,7 @@
             updateAllGraphs(false);
         }
         document.addEventListener("DOMContentLoaded", function() {
-            updateAllGraphs(false); // Automatically update charts on page load
+            updateAllGraphs(false); 
         });
 
         setInterval(() => { if (isLiveMode) updateAllGraphs(true); }, 300000);

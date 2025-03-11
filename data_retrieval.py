@@ -34,17 +34,15 @@ connection_string = (
 # create the SQLAlchemy engine
 engine = create_engine(connection_string)
 
-
 ZENTRA_API_URL = "https://zentracloud.com/api/v4/get_readings/"
 ZENTRA_DEVICE_SN = "z6-26142"
-ZENTRA_START_DATE = "2025-1-21 00:00"
-ZENTRA_END_DATE = "2025-02-17 00:00"
+ZENTRA_START_DATE = "2025-02-17 00:00"
+ZENTRA_END_DATE = "2025-02-20 00:00"
 
 THINGSPEAK_CHANNEL_ID = '2489769'
 THINGSPEAK_API_URL = f'https://api.thingspeak.com/channels/{THINGSPEAK_CHANNEL_ID}/feeds.json'
-THINGSPEAK_START_DATE = "2025-01-21 00:00:00-06:00"
-THINGSPEAK_END_DATE = "2025-02-17 00:00:00-06:00"
-
+THINGSPEAK_START_DATE = "2025-02-17 00:06:00"
+THINGSPEAK_END_DATE = "2025-02-20 00:00:00"
 
 def zentra_retrieve_data_for_period(device_sn, period_start, period_end):
     headers = {
@@ -320,46 +318,78 @@ def thingspeak_retrieve_data_in_weekly_segments(start_date, end_date, engine):
         # add a small delay to avoid hitting rate limits
         time.sleep(1)
 
+import pandas as pd
+from sqlalchemy import text
+import logging
+
 def get_zentracloud_data_from_db(start_date, end_date, engine):
-
-    with engine.connect() as conn:
-        query = text("""
-            SELECT *
-            FROM SensorReadings
-            WHERE timestamp >= :start_date AND timestamp <= :end_date
-            ORDER BY timestamp ASC
-        """)
-        df = pd.read_sql(query, conn, params={"start_date": start_date, "end_date": end_date})
-
-    # handle null timestamps
-    df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
-    df.dropna(subset=['timestamp'], inplace=True)
-
-    return df
+    """
+    Retrieve sensor readings from the database with improved error handling and logging.
+    """
+    try:
+        with engine.connect() as conn:
+            query = text("""
+                SELECT *
+                FROM SensorReadings
+                WHERE timestamp BETWEEN :start_date AND :end_date
+                ORDER BY timestamp ASC
+            """)
+            
+            # execute the query with explicit parameter binding
+            df = pd.read_sql(query, conn, params={"start_date": start_date, "end_date": end_date})
+            
+        # convert timestamp to datetime and handle null values
+        df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+        df.dropna(subset=['timestamp'], inplace=True)
+        
+        # make sure timestamps are strings with consistent format for JSON serialization
+        df['timestamp'] = df['timestamp'].dt.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+        
+        return df
+    
+    except Exception as e:
+        logging.error(f"Error in get_zentracloud_data_from_db: {str(e)}")
+        # return empty DataFrame on error
+        return pd.DataFrame()
 
 
 def get_thingspeak_data_from_db(start_date, end_date, engine):
-
-    with engine.connect() as conn:
-        if start_date and end_date:
-            query = text("""
-                SELECT *
-                FROM ThingSpeak
-                WHERE timestamp >= :start_date
-                  AND timestamp <= :end_date
-                ORDER BY timestamp ASC
-            """)
-            df = pd.read_sql(query, conn, params={"start_date": start_date, "end_date": end_date})
-        else:
-            # if either start_date or end_date is empty, return all rows
-            query = text("SELECT * FROM ThingSpeak ORDER BY timestamp ASC")
-            df = pd.read_sql(query, conn)
-
-    # handle null timestamps
-    df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
-    df.dropna(subset=['timestamp'], inplace=True)
-
-    return df
+    """
+    Retrieve ThingSpeak data from the database with improved error handling and logging.
+    """
+    try:
+        with engine.connect() as conn:
+            if start_date and end_date:
+                query = text("""
+                    SELECT *
+                    FROM ThingSpeak
+                    WHERE timestamp BETWEEN :start_date AND :end_date
+                    ORDER BY timestamp ASC
+                """)
+                
+                # execute the query with explicit parameter binding
+                df = pd.read_sql(query, conn, params={"start_date": start_date, "end_date": end_date})
+            else:
+                query = text("SELECT * FROM ThingSpeak ORDER BY timestamp ASC")
+                df = pd.read_sql(query, conn)
+        
+        # drop ID column
+        if 'id' in df.columns:
+            df = df.drop(['id'], axis=1)
+        
+        # convert timestamp to datetime and handle null values
+        df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+        df.dropna(subset=['timestamp'], inplace=True)
+        
+        # make sure timestamps are strings with consistent format for JSON serialization
+        df['timestamp'] = df['timestamp'].dt.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+        
+        return df
+    
+    except Exception as e:
+        logging.error(f"Error in get_thingspeak_data_from_db: {str(e)}")
+        # return empty DataFrame on error
+        return pd.DataFrame()
 
 if __name__ == "__main__":
     # first retrieve and insert ZENTRA data
