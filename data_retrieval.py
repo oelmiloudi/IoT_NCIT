@@ -36,13 +36,13 @@ engine = create_engine(connection_string)
 
 ZENTRA_API_URL = "https://zentracloud.com/api/v4/get_readings/"
 ZENTRA_DEVICE_SN = "z6-26142"
-ZENTRA_START_DATE = "2025-02-17 00:00"
-ZENTRA_END_DATE = "2025-02-20 00:00"
+ZENTRA_START_DATE = "2025-02-19 00:00"
+ZENTRA_END_DATE = "2025-03-14 00:00"
 
 THINGSPEAK_CHANNEL_ID = '2489769'
 THINGSPEAK_API_URL = f'https://api.thingspeak.com/channels/{THINGSPEAK_CHANNEL_ID}/feeds.json'
-THINGSPEAK_START_DATE = "2025-02-17 00:06:00"
-THINGSPEAK_END_DATE = "2025-02-20 00:00:00"
+THINGSPEAK_START_DATE = "2024-10-31 00:06:00"
+THINGSPEAK_END_DATE = "2025-03-14 00:00:00"
 
 def zentra_retrieve_data_for_period(device_sn, period_start, period_end):
     headers = {
@@ -238,6 +238,9 @@ def thingspeak_retrieve_data_for_period(start_date, end_date):
             # rename field columns and convert to float
             df['Pitch'] = pd.to_numeric(df['field1'], errors='coerce')
             df['Roll'] = pd.to_numeric(df['field2'], errors='coerce')
+
+            # Apply the +8.22 adjustment to Pitch values
+            df['Pitch'] = df['Pitch'] + 8.22
             
             # drop original field columns and entry_id
             df = df.drop(['field1', 'field2', 'entry_id'], axis=1)
@@ -287,24 +290,47 @@ def thingspeak_insert_readings(df, engine):
         return
         
     try:
-        # insert data into the database, ignore duplicates
-        df.to_sql('ThingSpeak', con=engine, if_exists='append', index=False, 
-                  method='multi', chunksize=1000)
-        print(f"Successfully inserted {len(df)} hourly ThingSpeak readings into the database.")
+        # Use the "ON DUPLICATE KEY UPDATE" approach to handle duplicates
+        with engine.connect() as conn:
+            # Create a temporary table
+            temp_table_name = "temp_thingspeak"
+            df.to_sql(temp_table_name, con=engine, if_exists='replace', index=False)
+            
+            # Insert from temp table with duplicate handling
+            insert_query = text(f"""
+                INSERT INTO ThingSpeak (timestamp, Pitch, Roll)
+                SELECT timestamp, Pitch, Roll FROM {temp_table_name}
+                ON DUPLICATE KEY UPDATE 
+                Pitch = VALUES(Pitch),
+                Roll = VALUES(Roll)
+            """)
+            
+            conn.execute(insert_query)
+            conn.commit()
+            
+            # Drop temp table
+            conn.execute(text(f"DROP TABLE {temp_table_name}"))
+            conn.commit()
+            
+        print(f"Successfully processed {len(df)} ThingSpeak readings (inserted new and updated existing).")
     except Exception as e:
         print(f"Error inserting ThingSpeak data into database: {e}")
 
 def thingspeak_retrieve_data_in_weekly_segments(start_date, end_date, engine):
-        
-    # create date ranges for each week
+    # Create date ranges for each week
     date_ranges = pd.date_range(start=start_date, end=end_date, freq='7D').tolist()
     
-    # add the end_date as the final element if it's not already in the list
+    # Add the end_date as the final element if it's not already in the list
     if pd.to_datetime(end_date) not in date_ranges:
         date_ranges.append(pd.to_datetime(end_date))
     
     for i in range(len(date_ranges) - 1):
-        period_start = date_ranges[i].strftime('%Y-%m-%d %H:%M:%S')
+        # For all segments except the first one, add a small offset to avoid duplicate timestamps
+        if i > 0:
+            period_start = (date_ranges[i] + timedelta(minutes=1)).strftime('%Y-%m-%d %H:%M:%S')
+        else:
+            period_start = date_ranges[i].strftime('%Y-%m-%d %H:%M:%S')
+            
         period_end = date_ranges[i + 1].strftime('%Y-%m-%d %H:%M:%S')
         
         print(f"\nRetrieving ThingSpeak data for period: {period_start} to {period_end}...")
@@ -315,7 +341,7 @@ def thingspeak_retrieve_data_in_weekly_segments(start_date, end_date, engine):
         else:
             print(f"No ThingSpeak data retrieved for period: {period_start} to {period_end}.")
         
-        # add a small delay to avoid hitting rate limits
+        # Add a small delay to avoid hitting rate limits
         time.sleep(1)
 
 import pandas as pd
@@ -393,7 +419,7 @@ def get_thingspeak_data_from_db(start_date, end_date, engine):
 
 if __name__ == "__main__":
     # first retrieve and insert ZENTRA data
-    zentra_retrieve_data_in_weekly_segments(ZENTRA_DEVICE_SN, ZENTRA_START_DATE, ZENTRA_END_DATE)
+    # zentra_retrieve_data_in_weekly_segments(ZENTRA_DEVICE_SN, ZENTRA_START_DATE, ZENTRA_END_DATE)
     
     # then retrieve and insert ThingSpeak data
     thingspeak_retrieve_data_in_weekly_segments(THINGSPEAK_START_DATE, THINGSPEAK_END_DATE, engine)
